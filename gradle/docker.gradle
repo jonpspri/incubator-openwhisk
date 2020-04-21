@@ -53,16 +53,10 @@ if(project.hasProperty('dockerHost')) {
     dockerBinary += ['--host', project.dockerHost]
 }
 
-if(project.hasProperty('dockerBuildArgs')) {
-    dockerBuildArgs.tokenize().each { arg  ->
-        dockerBuildArg += ['--build-arg', arg]
-    }
-}
-
 task distDocker {
     doLast {
         def start = new Date()
-        def cmd = dockerBinary + dockerBuildArg + ['-t', dockerImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
+        def cmd = dockerBinary + prepareBuildArgs([]) + ['-t', dockerImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
         retry(cmd, dockerRetries, dockerTimeout)
         println("Building '${dockerImageName}' took ${TimeCategory.minus(new Date(), start)}")
     }
@@ -100,8 +94,16 @@ task distDockerCoverage() {
 
 def prepareBuildArgs(List buildArgs) {
     def result = ['build']
+    /*
+     * TODO: This is probably better handled as a switch that throws and
+     *       exception if something unexpected happens
+     */
     if(project.hasProperty('dockerBuildArgs')) {
-        buildArgs.addAll(dockerBuildArgs.tokenize())
+        if(dockerBuildArgs instanceof java.lang.String) {
+           buildArgs.addAll(project.dockerBuildArgs.tokenize())
+        } else {
+           buildArgs.addAll(project.dockerBuildArgs)
+        }
     }
     buildArgs.each {arg ->
         result += ['--build-arg', arg]

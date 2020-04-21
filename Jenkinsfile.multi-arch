@@ -16,20 +16,19 @@
 def build_shell='''
 env | grep JAVA || /bin/true
 ./gradlew \
+  :common:scala:distDocker \
   :core:invoker:distDocker \
   :core:controller:distDocker \
-  :tools:ow-utils:distDocker \
-  -PdockerBuildArgs="ADOPTOPENJDK_TARGET_REGISTRY=${ADOPTOPENJDK_TARGET_REGISTRY}" \
-  -PdockerRegistry=${OPENWHISK_TARGET_REGISTRY:-docker.io} \
-  -PdockerImagePrefix=${OPENWHISK_TARGET_PREFIX:-openwhisk} \
+  -PdockerRegistry=${OPENWHISK_TARGET_REGISTRY:-us.icr.io} \
+  -PdockerImagePrefix=${OPENWHISK_TARGET_PREFIX:-openwhisk-multiarch} \
   -PdockerImageTag=latest-$(uname -m)
 '''
 
 def manifest_shell='''
-registry=${OPENWHISK_TARGET_REGISTRY:-docker.io}
-prefix=${OPENWHISK_TARGET_PREFIX:-openwhisk}
+registry=${OPENWHISK_TARGET_REGISTRY:-us.icr.io}
+prefix=${OPENWHISK_TARGET_PREFIX:-openwhisk-multiarch}
 rm -rf ~/.docker/manifests
-for i in invoker controller ow-utils; do
+for i in scala invoker controller; do
   docker manifest create ${registry}/${prefix}/$i:latest \
     ${registry}/${prefix}/$i:latest-x86_64 \
     ${registry}/${prefix}/$i:latest-s390x \
@@ -97,7 +96,7 @@ pipeline {
       agent {
         // Could be anything capable of running 'docker manifest', but right
         // now only the x86_64 environment is set up for that.
-       label "docker-x86_64"
+       label "docker-manifest"
       }
       steps {
         sh manifest_shell

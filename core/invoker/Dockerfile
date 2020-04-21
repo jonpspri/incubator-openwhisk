@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+#hadolint ignore=DL3006
 FROM scala
 
 ENV UID=1001 \
@@ -25,7 +26,7 @@ ENV UID=1001 \
 # If this cannot be guaranteed, set `invoker_use_runc: false` in the ansible env.
 
 
-RUN apk add --update openssl
+#RUN apk add --update openssl
 
 # Uncomment to fetch latest version of docker instead: RUN wget -qO- https://get.docker.com | sh
 # Install docker client
@@ -43,7 +44,19 @@ RUN chmod +x init.sh
 
 # When running the invoker as a non-root user this has implications on the standard directory where runc stores its data.
 # The non-root user should have access on the directory and corresponding permission to make changes on it.
-RUN adduser -D -u ${UID} -h /home/${NOT_ROOT_USER} -s /bin/bash ${NOT_ROOT_USER}
+#hadolint ignore=SC1091
+RUN . /etc/os-release \
+  && case "$NAME" in \
+      "Alpine Linux") \
+        adduser -D -u ${UID} -h /home/${NOT_ROOT_USER} -s /bin/bash ${NOT_ROOT_USER} \
+        ;; \
+      "Debian GNU/Linux") \
+        adduser --disabled-password --uid ${UID} --home /home/${NOT_ROOT_USER} \
+          --shell /bin/bash --gecos "" ${NOT_ROOT_USER} \
+        ;; \
+      *) echo "Unknown OS"; exit 16 \
+        ;; \
+    esac
 
 EXPOSE 8080
 CMD ["./init.sh", "0"]

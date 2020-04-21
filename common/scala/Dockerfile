@@ -14,20 +14,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk/openjdk11-openj9:x86_64-alpine-jdk-11.0.6_10_openj9-0.18.1
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+FROM debian:stretch-slim
+ARG JAVA_VERSION="jdk-11.0.7%2B10_openj9-0.20.0"
+ARG GLIBC_VER="2.31-r0"
 
-# Switch to the HTTPS endpoint for the apk repositories as per https://github.com/gliderlabs/docker-alpine/issues/184
-RUN sed -i 's/http\:\/\/dl-cdn.alpinelinux.org/https\:\/\/alpine.global.ssl.fastly.net/g' /etc/apk/repositories
-RUN apk add --update sed curl bash && apk update && apk upgrade
+SHELL [ "/bin/bash", "-euo", "pipefail", "-c" ]
 
-RUN mkdir /logs
+#  NOTE:  Should we provide a file of URL's and checksums so we can be sure the
+#         that the JDK download is not vulnerable to a man-in-the-middle attack?
+#hadolint ignore=DL3008
+RUN : \
+ && apt-get update \
+ && apt-get -y --no-install-recommends install \
+      ash \
+      curl ca-certificates \
+      locales \
+ && rm -rf /var/lib/apt/lists/* \
+ && sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen \
+ && locale-gen en_US.UTF-8 \
+ && :
 
-COPY transformEnvironment.sh /
-RUN chmod +x transformEnvironment.sh
+ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
-COPY copyJMXFiles.sh /
-RUN chmod +x copyJMXFiles.sh
+COPY transformEnvironment.sh copyJMXFiles.sh /
+RUN : \
+ && mkdir -p /opt/java/openjdk /logs \
+ && api_root="https://api.adoptopenjdk.net/v3" arch=$(uname -m | sed -e 's/x86_64/x64/') \
+ && url="${api_root}/binary/version/${JAVA_VERSION}/linux/${arch}/jdk/openj9/normal/adoptopenjdk" \
+ && echo "Retreiving JDK via ${url}" \
+ && curl -sL "${url}" | tar zfx - -C /opt/java/openjdk --strip-components=1 \
+ && chmod +x /transformEnvironment.sh copyJMXFiles.sh \
+ && :
+ENV JAVA_HOME=/opt/java/openjdk \
+    PATH="/opt/java/openjdk/bin:$PATH" \
+    JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"

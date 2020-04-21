@@ -15,7 +15,10 @@
 # limitations under the License.
 #
 
+#hadolint ignore=DL3006
 FROM scala
+
+SHELL [ "/bin/bash", "-euo", "pipefail", "-c" ]
 
 ENV UID=1001 \
     NOT_ROOT_USER=owuser
@@ -30,7 +33,7 @@ ENV SWAGGER_UI_DOWNLOAD_SHA256=3d7ef5ddc59e10f132fe99771498f0f1ba7a2cbfb9585f986
 # If this cannot be guaranteed, set `invoker_use_runc: false` in the ansible env.
 ENV DOCKER_VERSION=18.06.3-ce
 
-RUN apk add --update openssl
+#RUN apk add --update openssl
 
 # Uncomment to fetch latest version of docker instead: RUN wget -qO- https://get.docker.com | sh
 # Install docker client
@@ -56,7 +59,19 @@ ADD build/distributions/controller.tar /
 COPY init.sh /
 RUN chmod +x init.sh
 
-RUN adduser -D -u ${UID} -h /home/${NOT_ROOT_USER} -s /bin/bash ${NOT_ROOT_USER}
+#hadolint ignore=SC1091
+RUN . /etc/os-release \
+  && case "$NAME" in \
+      "Alpine Linux") \
+        adduser -D -u ${UID} -h /home/${NOT_ROOT_USER} -s /bin/bash ${NOT_ROOT_USER} \
+        ;; \
+      "Debian GNU/Linux") \
+        adduser --disabled-password --uid ${UID} --home /home/${NOT_ROOT_USER} \
+          --shell /bin/bash --gecos "" ${NOT_ROOT_USER} \
+        ;; \
+      *) echo "Unknown OS"; exit 16 \
+        ;; \
+    esac
 
 # It is possible to run as non root if you dont need invoker capabilities out of the controller today
 # When running it as a non-root user this has implications on the standard directory where runc stores its data.
